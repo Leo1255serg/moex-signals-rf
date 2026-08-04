@@ -1,0 +1,54 @@
+name: MOEX Signals RF
+
+on:
+  schedule:
+    - cron: "30 7 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      telegram_only:
+        description: "Только тест Telegram"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+permissions:
+  contents: write
+
+jobs:
+  run-signals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Test Telegram only
+        if: github.event_name == 'workflow_dispatch' && inputs.telegram_only == 'true'
+        run: python test_telegram.py
+      - name: Run signals
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.telegram_only == 'true') }}
+        env:
+          API_PAUSE: "1"
+          TF_CPP_MIN_LOG_LEVEL: "2"
+        run: python run.py
+      - name: Commit data
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.telegram_only == 'true') }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/*.xlsx rf_model.pkl nn_model.h5 scaler.pkl || true
+          if git diff --staged --quiet; then
+            echo "No changes"
+          else
+            git commit -m "data update"
+            git push
+          fi
