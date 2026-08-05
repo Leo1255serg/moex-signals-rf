@@ -1,4 +1,4 @@
-"""Быстрый тест доставки в Telegram (для GitHub Actions / локально с VPN)."""
+"""Быстрый тест доставки в Telegram (для GitHub Actions)."""
 from __future__ import annotations
 
 import asyncio
@@ -8,13 +8,16 @@ from zoneinfo import ZoneInfo
 
 from telegram import Bot
 
-BOT_TOKEN = (os.environ.get("BOT_TOKEN") or "7831097053:AAE5lFirdDiDbdCa45eLh3k5tuYrWYLVS00").strip()
-CHAT_ID = (os.environ.get("CHAT_ID") or "283220567").strip()
+BOT_TOKEN = (os.environ.get("BOT_TOKEN") or "").strip()
+CHAT_ID = (os.environ.get("CHAT_ID") or "").strip()
 
 
 async def main() -> None:
     if not BOT_TOKEN or not CHAT_ID:
-        raise SystemExit("Нужны BOT_TOKEN и CHAT_ID в окружении.")
+        raise SystemExit(
+            "Нет BOT_TOKEN или CHAT_ID. "
+            "Добавьте Secrets: Settings → Secrets and variables → Actions."
+        )
 
     bot = Bot(token=BOT_TOKEN)
     me = await bot.get_me()
@@ -23,7 +26,7 @@ async def main() -> None:
     text = (
         "✅ Тест Сигналы РФ (GitHub Actions)\n"
         f"Время МСК: {now}\n"
-        "Уведомления доходят."
+        "Уведомления доходят. Secrets настроены."
     )
     msg = await bot.send_message(chat_id=CHAT_ID, text=text)
     print(f"Message sent, id={msg.message_id}")
