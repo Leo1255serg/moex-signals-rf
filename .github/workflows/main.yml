@@ -1,12 +1,13 @@
 name: MOEX Signals RF
 
+# 10:30 МСК = 07:30 UTC. GitHub часто запускает cron с задержкой 5–60 мин.
 on:
   schedule:
     - cron: "30 7 * * 1-5"
   workflow_dispatch:
     inputs:
       telegram_only:
-        description: "Только тест Telegram"
+        description: "Только тест Telegram (без расчёта сигналов)"
         required: false
         default: "false"
         type: choice
@@ -17,38 +18,68 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: moex-signals
+  cancel-in-progress: false
+
 jobs:
   run-signals:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check secrets
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+        run: |
+          if [ -z "$BOT_TOKEN" ] || [ -z "$CHAT_ID" ]; then
+            echo "::error::Нет Secrets BOT_TOKEN или CHAT_ID."
+            echo "Settings → Secrets and variables → Actions → New repository secret"
+            exit 1
+          fi
+          echo "Secrets найдены."
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
           cache-dependency-path: requirements.txt
-      - run: |
+
+      - name: Install dependencies
+        run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
       - name: Test Telegram only
         if: github.event_name == 'workflow_dispatch' && inputs.telegram_only == 'true'
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
         run: python test_telegram.py
+
       - name: Run signals
         if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.telegram_only == 'true') }}
         env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
           API_PAUSE: "1"
           TF_CPP_MIN_LOG_LEVEL: "2"
         run: python run.py
-      - name: Commit data
+
+      - name: Commit updated data
         if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.telegram_only == 'true') }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/*.xlsx rf_model.pkl nn_model.h5 scaler.pkl || true
           if git diff --staged --quiet; then
-            echo "No changes"
+            echo "Нет изменений для коммита"
           else
-            git commit -m "data update"
+            git commit -m "data: обновление после запуска $(date -u +%Y-%m-%d)"
             git push
           fi
