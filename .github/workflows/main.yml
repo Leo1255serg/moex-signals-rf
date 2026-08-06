@@ -1,9 +1,10 @@
 name: MOEX Signals RF
 
-# 10:30 МСК = 07:30 UTC. GitHub часто запускает cron с задержкой 5–60 мин.
+# 10:30 по Москве. GitHub всё равно может сдвинуть запуск на десятки минут.
 on:
   schedule:
-    - cron: "30 7 * * 1-5"
+    - cron: "30 10 * * 1-5"
+      timezone: Europe/Moscow
   workflow_dispatch:
     inputs:
       telegram_only:
